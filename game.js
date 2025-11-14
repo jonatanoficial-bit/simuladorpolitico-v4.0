@@ -1,20 +1,90 @@
-// =========================
-//  Simulador Político 4.x
-//  Lógica principal do jogo
-// =========================
+/* =========================
+   Simulador Político – Game Engine
+   Versão 4.0 Estável
+   ========================= */
 
 const $  = (q) => document.querySelector(q);
 const $$ = (q) => document.querySelectorAll(q);
 
-// ---------- CONTROLE DE TELAS ----------
-const screens = {};
+/* ---------- Telas ---------- */
+let screens = {};
+let fadeEl   = null;
 
-function showScreen(id) {
-  Object.values(screens).forEach(s => s && s.classList.remove("show"));
+/* Exibe apenas uma tela */
+function show(id) {
+  Object.values(screens).forEach((s) => s && s.classList.remove("show"));
   if (screens[id]) screens[id].classList.add("show");
 }
 
-// ---------- MODAL (CAIXA DE DIÁLOGO) ----------
+/* Transição com fade */
+function fadeTo(id) {
+  if (!fadeEl) return show(id);
+
+  fadeEl.classList.remove("hidden");
+  fadeEl.classList.add("show");
+
+  setTimeout(() => {
+    show(id);
+
+    setTimeout(() => {
+      fadeEl.classList.remove("show");
+      setTimeout(() => fadeEl.classList.add("hidden"), 250);
+    }, 50);
+
+  }, 200);
+}
+
+/* ---------- Dados ---------- */
+
+const parties = [
+  { sigla:"PTM",  nome:"Partido do Trabalhador Moderno", logo:"simulador_images/party_ptm.png"  },
+  { sigla:"PSLB", nome:"Partido Social Liberal do Brasil", logo:"simulador_images/party_pslb.png" },
+  { sigla:"MDBR", nome:"Movimento Democrático Brasileiro Real", logo:"simulador_images/party_mdbr.png" },
+  { sigla:"PVG",  nome:"Partido Verde Global", logo:"simulador_images/party_pvg.png"  },
+  { sigla:"PRP",  nome:"Partido Republicano Popular", logo:"simulador_images/party_prp.png"  }
+];
+
+const states = [
+  "Acre","Alagoas","Amapá","Amazonas","Bahia","Ceará","Distrito Federal","Espírito Santo","Goiás",
+  "Maranhão","Mato Grosso","Mato Grosso do Sul","Minas Gerais","Pará","Paraíba","Paraná","Pernambuco",
+  "Piauí","Rio de Janeiro","Rio Grande do Norte","Rio Grande do Sul","Rondônia","Roraima","Santa Catarina",
+  "São Paulo","Sergipe","Tocantins"
+];
+
+const offices = [
+  { name:"Vereador",          type:"legislative", bg:"simulador_images/municipal.jpg" },
+  { name:"Prefeito",          type:"executive",   bg:"simulador_images/cityhall.jpg"  },
+  { name:"Deputado Estadual", type:"legislative", bg:"simulador_images/assembly.jpg"  },
+  { name:"Governador",        type:"executive",   bg:"simulador_images/governor.jpg"  },
+  { name:"Deputado Federal",  type:"legislative", bg:"simulador_images/federal.jpg"   },
+  { name:"Senador",           type:"legislative", bg:"simulador_images/senate.jpg"    },
+  { name:"Presidente",        type:"executive",   bg:"simulador_images/president.jpg" }
+];
+
+/* ---------- Estado geral ---------- */
+
+const STORE_KEY = "SimPolitico_Save_v40";
+
+let G = {
+  partyIdx: 0,
+  state: "São Paulo",
+  city: "Minha Cidade",
+  officeIdx: 0,
+  approvals: 0,
+  popPeople: 50,
+  popMedia:  50,
+  popParty:  50,
+  feed: [],
+  turn: 1
+};
+
+/* Utilidades */
+const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
+const rnd    = (n) => Math.floor(Math.random() * n);
+const rbool  = (p) => Math.random() < p;
+
+/* ---------- Modal / fallback ---------- */
+
 let modal, modalTitle, modalBody, modalActions;
 
 function setupModal() {
@@ -22,33 +92,37 @@ function setupModal() {
   modalTitle   = $("#modalTitle");
   modalBody    = $("#modalBody");
   modalActions = $("#modalActions");
-
-  if (!modal) return;
-
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeModal();
-  });
-
-  // garante que inicie oculto
-  if (!modal.classList.contains("hidden")) modal.classList.add("hidden");
 }
 
 function openModal(title, htmlBody, actions) {
+
+  /* Se NÃO existir modal no HTML → usamos confirm()/alert() */
   if (!modal) {
-    // fallback simples caso o HTML do modal não exista
-    alert(title + "\n\n" + htmlBody.replace(/<[^>]+>/g, ""));
+    const txt = (title ? title + "\n\n" : "") + htmlBody.replace(/<[^>]+>/g, "");
+
+    if (actions && actions.length === 2) {
+      const ok = confirm(txt);
+
+      if (ok && actions[0].onClick) actions[0].onClick();
+      if (!ok && actions[1].onClick) actions[1].onClick();
+    } else {
+      alert(txt);
+      if (actions && actions[0] && actions[0].onClick) actions[0].onClick();
+    }
+
     return;
   }
 
-  modalTitle.innerHTML = title || "";
-  modalBody.innerHTML  = htmlBody || "";
+  /* Modal estilizado */
+  modalTitle.innerHTML = title;
+  modalBody.innerHTML  = htmlBody;
   modalActions.innerHTML = "";
 
-  (actions || []).forEach((a) => {
+  actions.forEach((a) => {
     const btn = document.createElement("button");
     btn.className = "btn " + (a.className || "");
     btn.textContent = a.label;
-    btn.onclick = () => { if (a.onClick) a.onClick(); };
+    btn.onclick = a.onClick;
     modalActions.appendChild(btn);
   });
 
@@ -59,93 +133,7 @@ function closeModal() {
   if (modal) modal.classList.add("hidden");
 }
 
-function toast(text) {
-  openModal("Informação", text, [
-    { label: "OK", className: "btn-gold", onClick: closeModal }
-  ]);
-}
-
-// ---------- DADOS DO JOGO ----------
-const parties = [
-  {
-    sigla: "PTM",
-    nome: "Partido do Trabalhador Moderno",
-    desc: "Ênfase em programas sociais e direitos trabalhistas.",
-    logo: "simulador_images/party_ptm.png",
-  },
-  {
-    sigla: "PSLB",
-    nome: "Partido Social Liberal do Brasil",
-    desc: "Foco em mercado, privatizações e empreendedorismo.",
-    logo: "simulador_images/party_pslb.png",
-  },
-  {
-    sigla: "MDBR",
-    nome: "Movimento Democrático Brasileiro Real",
-    desc: "Pragmatismo, alianças amplas e negociação.",
-    logo: "simulador_images/party_mdbr.png",
-  },
-  {
-    sigla: "PVG",
-    nome: "Partido Verde Global",
-    desc: "Sustentabilidade, meio ambiente e cidades inteligentes.",
-    logo: "simulador_images/party_pvg.png",
-  },
-  {
-    sigla: "PRP",
-    nome: "Partido Republicano Popular",
-    desc: "Costumes conservadores, segurança e ordem.",
-    logo: "simulador_images/party_prp.png",
-  },
-];
-
-const states = [
-  "Acre","Alagoas","Amapá","Amazonas","Bahia","Ceará","Distrito Federal",
-  "Espírito Santo","Goiás","Maranhão","Mato Grosso","Mato Grosso do Sul",
-  "Minas Gerais","Pará","Paraíba","Paraná","Pernambuco","Piauí",
-  "Rio de Janeiro","Rio Grande do Norte","Rio Grande do Sul","Rondônia",
-  "Roraima","Santa Catarina","São Paulo","Sergipe","Tocantins"
-];
-
-// ordem da sua carreira
-const offices = [
-  { name: "Vereador",          type: "legislative", bg: "simulador_images/municipal.jpg" },
-  { name: "Prefeito",          type: "executive",   bg: "simulador_images/cityhall.jpg"  },
-  { name: "Deputado Estadual", type: "legislative", bg: "simulador_images/assembly.jpg"  },
-  { name: "Prefeito",          type: "executive",   bg: "simulador_images/cityhall.jpg"  },
-  { name: "Governador",        type: "executive",   bg: "simulador_images/governor.jpg"  },
-  { name: "Deputado Federal",  type: "legislative", bg: "simulador_images/federal.jpg"   },
-  { name: "Senador",           type: "legislative", bg: "simulador_images/senate.jpg"    },
-  { name: "Presidente",        type: "executive",   bg: "simulador_images/president.jpg" },
-];
-
-const storeKey = "simPolitico_v4";
-
-// ---------- ESTADO GLOBAL ----------
-let G = {};
-
-function defaultState() {
-  return {
-    partyIdx: 0,
-    state: null,
-    city: "",
-    officeIdx: 0,      // começa vereador
-    termTurn: 1,
-    approvals: 0,      // projetos aprovados
-    popPeople: 50,
-    popMedia:  50,
-    popParty:  50,
-    feed: [],
-  };
-}
-
-function resetGame() {
-  G = defaultState();
-}
-
-// ---------- HELPERS ----------
-const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-const randomBool = (p) => Math.random() < p;
+/* ---------- Feed ---------- */
 
 function addFeed(tag, text) {
   G.feed.unshift({ tag, text });
@@ -154,434 +142,348 @@ function addFeed(tag, text) {
 }
 
 function renderFeed() {
-  const el = $("#feed");
-  if (!el) return;
-  el.innerHTML = G.feed.map(item => `
+  const box = $("#feed");
+  if (!box) return;
+
+  box.innerHTML = G.feed.map(f => `
     <div class="feed-item">
-      <div class="feed-tag">${item.tag}</div>
-      <div class="feed-body">${item.text}</div>
+      <div class="feed-tag">${f.tag}</div>
+      <div class="feed-body">${f.text}</div>
     </div>
   `).join("");
 }
 
-function setMain(title, html) {
-  const t = $("#mainTitle");
-  const m = $("#mainText");
-  if (t) t.textContent = title;
-  if (m) m.innerHTML   = html;
-}
-
-// ---------- HUD E IMAGEM CENTRAL ----------
-function updateOfficeImage() {
-  const office = offices[G.officeIdx];
-  const el = $("#officeImage");
-  if (!el) return;
-  el.style.backgroundImage = `url('${office.bg}')`;
-}
+/* ---------- HUD ---------- */
 
 function updateHUD() {
   const office = offices[G.officeIdx];
   const party  = parties[G.partyIdx];
 
-  const hudOffice   = $("#hudOffice");
-  const hudLocation = $("#hudLocation");
-  const partyLogo   = $("#partyLogo");
-  const txtProgress = $("#txtProgress");
-  const barProgress = $("#barProgress");
-  const popPeople   = $("#popPeople");
-  const popMedia    = $("#popMedia");
-  const popParty    = $("#popParty");
+  $("#hudOffice").textContent   = office.name;
+  $("#hudLocation").textContent = `${G.city} - ${G.state} • Mandato ${G.turn}`;
 
-  if (hudOffice)   hudOffice.textContent   = office.name;
-  if (hudLocation) hudLocation.textContent = `${G.city} - ${G.state} • Mandato ${G.termTurn}`;
+  $("#partyLogo").src = party.logo;
 
-  if (partyLogo) {
-    if (party && party.logo) {
-      partyLogo.src = party.logo;
-      partyLogo.style.display = "block";
-    } else {
-      partyLogo.style.display = "none";
-    }
-  }
+  $("#popPeople").textContent = G.popPeople + "%";
+  $("#popMedia").textContent  = G.popMedia  + "%";
+  $("#popParty").textContent  = G.popParty  + "%";
 
   const pct = Math.min(100, Math.round((G.approvals / 15) * 100));
-  if (txtProgress) txtProgress.textContent = pct + "%";
-  if (barProgress) barProgress.style.width = pct + "%";
+  $("#txtProgress").textContent = pct + "%";
+  $("#barProgress").style.width = pct + "%";
 
-  if (popPeople) popPeople.textContent = clamp(G.popPeople) + "%";
-  if (popMedia)  popMedia.textContent  = clamp(G.popMedia)  + "%";
-  if (popParty)  popParty.textContent  = clamp(G.popParty)  + "%";
+  // Imagem central
+  const centerImg = $("#centerImage");
+  if (centerImg) centerImg.src = office.bg;
 
-  updateOfficeImage();
+  $("#screenGame").style.backgroundImage =
+    `linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,.93)),url('${office.bg}')`;
 }
 
-// ---------- SALVAR / CARREGAR ----------
-function saveGame() {
-  try {
-    localStorage.setItem(storeKey, JSON.stringify(G));
-    toast("Progresso salvo!");
-  } catch (e) {
-    console.warn("Falha ao salvar:", e);
-  }
-}
+/* ---------- Ações do Jogo ---------- */
 
-function loadGame() {
-  try {
-    const raw = localStorage.getItem(storeKey);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    G = Object.assign(defaultState(), data || {});
-  } catch (e) {
-    console.warn("Falha ao carregar save:", e);
-  }
-}
-
-// ---------- AÇÕES ----------
-
-function actVoteProjects() {
+function actVote() {
   const projetos = [
     "Reforma da frota de ônibus",
-    "Programa de segurança nos bairros",
-    "Requalificação de escolas públicas",
     "Incentivo fiscal para pequenas empresas",
-    "Criação de parque urbano",
+    "Requalificação de escolas públicas",
+    "Zona verde urbana",
+    "Programa Saúde Já"
   ];
-  const p = projetos[Math.floor(Math.random() * projetos.length)];
-  const total = 30 + Math.floor(Math.random() * 40);
-  const baseYes = 0.4 + Math.random() * 0.3;
-  const yes = Math.round(total * baseYes);
-  const no  = total - yes;
-  const passa = yes > no;
+
+  const p = projetos[rnd(projetos.length)];
+  const total = 30 + rnd(40);
+  const sim   = Math.round(total * (0.4 + Math.random()*0.3));
+  const nao   = total - sim;
+  const passou = sim > nao;
 
   openModal(
     "Votação em plenário",
-    `Em pauta: <b>${p}</b>.<br><br>
-     Placar parcial: <b>${yes}</b> SIM • <b>${no}</b> NÃO.<br><br>
-     Como você deseja votar?`,
+    `Em pauta: <b>${p}</b>.<br>Placar: <b>${sim}</b> SIM • <b>${nao}</b> NÃO.<br><br>Como deseja votar?`,
     [
       {
-        label: "Votar SIM",
-        className: "btn-gold",
-        onClick: () => { closeModal(); resolveVote(true, passa, p); }
+        label:"Votar SIM",
+        className:"btn-gold",
+        onClick: () => resolveVote(true, passou, p)
       },
       {
-        label: "Votar NÃO",
-        onClick: () => { closeModal(); resolveVote(false, passa, p); }
-      },
+        label:"Votar NÃO",
+        onClick: () => resolveVote(false, passou, p)
+      }
     ]
   );
 }
 
 function resolveVote(votouSim, passou, projeto) {
-  let dPovo = 0, dMidia = 0, dPart = 0;
+  let dp = 0, dm = 0, dpt = 0;
 
   if (passou && votouSim) {
-    dPovo += 3; dMidia += 2; dPart += 2;
+    dp+=3; dm+=2; dpt+=2;
     G.approvals++;
-    addFeed("Votação", `Você apoiou <b>${projeto}</b>, aprovado em plenário.`);
-  } else if (!passou && !votouSim) {
-    dPovo += 1; dMidia += 2; dPart += 1;
+    addFeed("Votação", `Você apoiou <b>${projeto}</b> e o projeto foi aprovado.`);
+  }
+  else if (!passou && !votouSim) {
+    dp+=1; dm+=2; dpt+=1;
     addFeed("Votação", `Você votou contra <b>${projeto}</b>, rejeitado.`);
-  } else {
-    dPovo -= 2; dMidia -= 1;
-    addFeed("Votação", `Sua posição em <b>${projeto}</b> dividiu o eleitorado.`);
+  }
+  else {
+    dp-=2; dm-=1;
+    addFeed("Votação", `Sua decisão sobre <b>${projeto}</b> gerou divisão.`);
   }
 
-  G.popPeople += dPovo;
-  G.popMedia  += dMidia;
-  G.popParty  += dPart;
-  G.termTurn  += 1;
+  G.popPeople += dp;
+  G.popMedia  += dm;
+  G.popParty  += dpt;
+  G.turn++;
 
   updateHUD();
+
   setMain(
     "Resultado da votação",
-    `Impactos:<br>
-     Povo: ${(dPovo >= 0 ? "+" : "") + dPovo}%<br>
-     Mídia: ${(dMidia >= 0 ? "+" : "") + dMidia}%<br>
-     Partido: ${(dPart >= 0 ? "+" : "") + dPart}%`
+    `
+      Povo: ${(dp>=0?"+":"")+dp}%<br>
+      Mídia: ${(dm>=0?"+":"")+dm}%<br>
+      Partido: ${(dpt>=0?"+":"")+dpt}%
+    `
   );
 }
 
-function actProposeLaw() {
+/* ---------- Propor Projeto ---------- */
+
+function actPropose() {
   const ideias = [
-    "Programa de Wi-Fi público nas praças",
-    "Criação de corredor exclusivo de ônibus",
-    "Implantação de hortas comunitárias",
-    "Plano de valorização do magistério",
-    "Lei anti-desperdício de alimentos"
+    "Plano de Wi-Fi Público",
+    "Ciclovias Inteligentes",
+    "Kit Educação Digital",
+    "Programa Alimentar",
+    "Transporte Verde"
   ];
-  const p = ideias[Math.floor(Math.random() * ideias.length)];
+
+  const p = ideias[rnd(ideias.length)];
 
   openModal(
-    "Propor novo projeto",
-    `Você está prestes a protocolar o projeto:<br><br>
-     <b>${p}</b><br><br>
-     Deseja enviar para tramitação?`,
+    "Propor Projeto",
+    `Deseja protocolar o projeto:<br><b>${p}</b>?`,
     [
       {
-        label: "Protocolar projeto",
-        className: "btn-gold",
+        label:"Protocolar",
+        className:"btn-gold",
         onClick: () => {
           closeModal();
+          const aprovado = rbool(0.5 + (G.popParty-50)/200);
 
-          const chanceBase = 0.5;
-          const bonusPart  = (G.popParty - 50) / 200;
-          const aprovado   = randomBool(chanceBase + bonusPart);
-
-          if (aprovado) {
+          if (aproprovado) {
             G.approvals++;
-            G.popPeople += 3;
-            G.popMedia  += 2;
-            G.popParty  += 2;
+            G.popPeople+=3;
+            G.popMedia +=2;
+            G.popParty +=2;
             addFeed("Projeto aprovado", `Seu projeto <b>${p}</b> virou lei.`);
-            setMain("Projeto aprovado", "A recepção foi positiva.");
+            setMain("Projeto aprovado", "A população gostou da iniciativa.");
           } else {
-            G.popPeople -= 1;
-            G.popMedia  -= 2;
-            addFeed("Projeto rejeitado", `O projeto <b>${p}</b> foi arquivado nas comissões.`);
-            setMain("Projeto rejeitado", "Críticas da imprensa à articulação.");
+            G.popPeople--;
+            G.popMedia -=2;
+            addFeed("Projeto rejeitado", `O projeto <b>${p}</b> foi arquivado.`);
+            setMain("Projeto rejeitado", "A mídia criticou sua articulação.");
           }
-
-          G.termTurn += 1;
+          G.turn++;
           updateHUD();
         }
       },
-      { label: "Cancelar", onClick: closeModal }
+      {
+        label:"Cancelar",
+        onClick: closeModal
+      }
     ]
   );
 }
+
+/* ---------- Crises ---------- */
 
 function actCrisis() {
   const office = offices[G.officeIdx];
-
-  // só para Prefeito / Governador / Presidente
   if (office.type !== "executive") {
-    toast("Crises executivas só aparecem para Prefeitos, Governadores e Presidente.");
-    return;
+    return alert("Somente cargos do Executivo enfrentam crises.");
   }
 
   const crises = [
-    { area: "Saúde",     op: ["Mutirão de consultas", "Construir nova UPA", "Repassar recursos"],          impact: [+3,+4,+2] },
-    { area: "Segurança", op: ["Aumentar policiamento", "Iluminação pública", "Criar guarda comunitária"], impact: [+3,+2,+2] },
-    { area: "Economia",  op: ["Reduzir impostos", "Atrair empresas", "Programa de qualificação"],         impact: [+2,+3,+3] },
+    {area:"Saúde", op:["Mutirão","UPA","Recursos"], impact:[+3,+4,+2]},
+    {area:"Segurança", op:["Policiamento","Iluminação","Guarda"], impact:[+3,+2,+2]},
+    {area:"Economia", op:["Redução de impostos","Atração de empresas","Cursos"], impact:[+2,+3,+3]}
   ];
 
-  const c = crises[Math.floor(Math.random() * crises.length)];
-  let body = `Crise em <b>${c.area}</b>.<br><br>Escolha uma ação:<br><br>`;
-  c.op.forEach((o, i) => body += `<b>${i+1}.</b> ${o}<br>`);
+  const c = crises[rnd(crises.length)];
 
-  const actions = c.op.map((o, i) => ({
-    label: o,
-    className: i === 0 ? "btn-gold" : "",
-    onClick: () => {
-      closeModal();
-      let d = c.impact[i];
-      if (randomBool(0.25)) d -= 2; // chance da situação piorar
+  openModal(
+    "Crise em " + c.area,
+    "Escolha uma ação:",
+    c.op.map((acao,i)=>({
+      label: acao,
+      onClick:()=>{
+        let d = c.impact[i];
+        if (rbool(0.2)) d -= 2;
 
-      G.popPeople += d;
-      G.popMedia  += (d > 0 ? 1 : -1);
-      G.popParty  += (d >= 0 ? 1 : -2);
-      G.termTurn  += 1;
+        G.popPeople += d;
+        G.popMedia  += d>=0?1:-1;
+        G.popParty  += d>=0?1:-2;
+        G.turn++;
 
-      addFeed("Crise", `Ação em <b>${c.area}</b>: ${o}.`);
-      setMain("Gestão de crise", `Impacto popular: ${(d >= 0 ? "+" : "") + d}%`);
+        addFeed("Crise", `Você atuou em <b>${c.area}</b>: ${acao}`);
+        setMain("Crise", `Impacto popular: ${d>=0?"+":""}${d}%`);
 
-      updateHUD();
-      checkImpeachment();
-    }
-  }));
-
-  openModal("Gestão de crise", body, actions);
+        updateHUD();
+      }
+    }))
+  );
 }
 
+/* ---------- Campanha ---------- */
+
 function actCampaign() {
-  if (clamp(G.popPeople) < 60) {
-    toast("Popularidade com o povo precisa ser ≥ 60% para concorrer ao próximo cargo.");
+
+  if (G.popPeople < 60) {
+    alert("Popularidade mínima: 60% para campanha.");
     return;
   }
-  const nextIdx = Math.min(offices.length - 1, G.officeIdx + 1);
-  if (nextIdx === G.officeIdx) {
-    toast("Você já alcançou o cargo máximo.");
-    return;
-  }
-  const next = offices[nextIdx];
+
+  const next = offices[G.officeIdx+1];
+  if (!next) return alert("Você já está no cargo máximo!");
 
   openModal(
     "Campanha eleitoral",
-    `Você deseja lançar sua campanha para <b>${next.name}</b>?<br><br>
-     O resultado leva em conta Povo, Mídia, Partido e o histórico de mandatos.`,
+    `Lançar campanha para <b>${next.name}</b>?`,
     [
       {
-        label: "Lançar campanha",
-        className: "btn-gold",
-        onClick: () => { closeModal(); runElection(nextIdx); }
+        label:"Iniciar campanha",
+        className:"btn-gold",
+        onClick:()=>{
+          closeModal();
+
+          const base = (G.popPeople + G.popMedia + G.popParty)/3;
+          let pontos = 0;
+          for (let i=0;i<5;i++) if (rbool(0.45+base/200)) pontos++;
+
+          if (pontos>=3) {
+            G.officeIdx++;
+            G.turn = 1;
+            G.approvals = 0;
+            G.popMedia+=2;
+            addFeed("Eleições", `Você foi eleito <b>${next.name}</b>!`);
+            setMain("Vitória!", `Parabéns! Agora você é <b>${next.name}</b>.`);
+          } else {
+            G.popPeople-=4;
+            G.popMedia -=3;
+            addFeed("Eleições", `Sua campanha para <b>${next.name}</b> falhou.`);
+            setMain("Derrota eleitoral", "Tente novamente mais tarde.");
+          }
+
+          updateHUD();
+        }
       },
-      { label: "Ainda não", onClick: closeModal }
+      {
+        label:"Cancelar",
+        onClick: closeModal
+      }
     ]
   );
 }
 
-function runElection(nextIdx) {
-  const base = (clamp(G.popPeople) + clamp(G.popMedia) + clamp(G.popParty)) / 3;
-  let pontos = 0;
+/* ---------- Sistema de Salvamento ---------- */
 
-  // 5 "discursos" simulados
-  for (let i = 0; i < 5; i++) {
-    if (randomBool(0.45 + base / 200)) pontos++;
-  }
-
-  const nextOffice = offices[nextIdx];
-
-  if (pontos >= 3) {
-    addFeed("Eleições", `Você foi eleito <b>${nextOffice.name}</b>!`);
-    G.officeIdx = nextIdx;
-    G.termTurn  = 1;
-    G.approvals = 0;
-    G.popMedia += 2;
-
-    setMain(
-      "Vitória nas urnas",
-      `Sua campanha foi bem-sucedida e você foi eleito <b>${nextOffice.name}</b>!`
-    );
-  } else {
-    addFeed("Eleições", `Sua campanha para <b>${nextOffice.name}</b> não conquistou votos suficientes.`);
-    G.popPeople -= 5;
-    G.popMedia  -= 3;
-
-    setMain(
-      "Derrota eleitoral",
-      "A campanha não teve votos suficientes. Continue trabalhando e tente novamente."
-    );
-  }
-
-  updateHUD();
-  saveGame();
+function saveGame() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(G));
+  alert("Progresso salvo!");
 }
 
-function checkImpeachment() {
-  if (clamp(G.popPeople) <= 0) {
-    addFeed("Crise máxima", "Popularidade com o povo chegou a 0%. Você sofreu impeachment!");
-    setMain(
-      "Impeachment",
-      "Sua popularidade desabou e você sofreu impeachment. Voltará ao início como Vereador."
-    );
-    resetGame();
-    updateHUD();
-  }
+function loadGame() {
+  const data = localStorage.getItem(STORE_KEY);
+  if (!data) return;
+  G = Object.assign(G, JSON.parse(data));
 }
 
-// ---------- SETUP INICIAL ----------
+/* ---------- Setup ---------- */
+
+function setMain(title, html) {
+  $("#mainTitle").textContent = title;
+  $("#mainText").innerHTML    = html;
+}
+
 function mountSetup() {
-  const selParty = $("#selParty");
-  const selState = $("#selState");
+  const p = $("#selParty");
+  parties.forEach((pt,i)=>{
+    const o = document.createElement("option");
+    o.value=i;
+    o.textContent=pt.sigla+" - "+pt.nome;
+    p.appendChild(o);
+  });
 
-  if (selParty) {
-    selParty.innerHTML = "";
-    parties.forEach((p, i) => {
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = `${p.sigla} - ${p.nome}`;
-      selParty.appendChild(opt);
-    });
-  }
-
-  if (selState) {
-    selState.innerHTML = "";
-    states.forEach((s) => {
-      const opt = document.createElement("option");
-      opt.value = s;
-      opt.textContent = s;
-      selState.appendChild(opt);
-    });
-  }
+  const s = $("#selState");
+  states.forEach(st=>{
+    const o = document.createElement("option");
+    o.value = st;
+    o.textContent = st;
+    s.appendChild(o);
+  });
 }
+
+/* ---------- Bind ---------- */
+
+function bindButtons() {
+
+  $("#btnStart").onclick = ()=>fadeTo("setup");
+
+  $("#btnBegin").onclick = ()=>{
+    const city = $("#inpCity").value.trim();
+    if (!city) return alert("Digite sua cidade.");
+
+    G.city     = city;
+    G.state    = $("#selState").value;
+    G.partyIdx = parseInt($("#selParty").value);
+
+    beginMandate();
+  };
+
+  $("#btnAction1").onclick = actVote;
+  $("#btnAction2").onclick = actPropose;
+  $("#btnAction3").onclick = actCrisis;
+  $("#btnAction4").onclick = actCampaign;
+
+  $("#btnSave").onclick = saveGame;
+  $("#btnHome").onclick = ()=>fadeTo("intro");
+}
+
+/* ---------- Mandato ---------- */
 
 function beginMandate() {
   renderFeed();
   updateHUD();
+
   setMain(
     "Início de mandato",
-    `Você assumiu o cargo de <b>${offices[G.officeIdx].name}</b> em <b>${G.city} - ${G.state}</b>, pelo <b>${parties[G.partyIdx].sigla}</b>.<br><br>
-     Use as ações à esquerda. Cada decisão afeta Povo, Mídia e Partido.`
+    `Você assumiu o cargo de <b>${offices[G.officeIdx].name}</b> em <b>${G.city} - ${G.state}</b>.`
   );
-  addFeed("Posse", `Novo mandato como <b>${offices[G.officeIdx].name}</b> em ${G.city}.`);
-  showScreen("game");
+
+  addFeed("Posse", `Começou como <b>${offices[G.officeIdx].name}</b> em ${G.city}.`);
+
+  fadeTo("game");
 }
 
-// ---------- BIND DOS BOTÕES ----------
-function bindButtons() {
-  const btnStart = $("#btnStart");
-  const btnBegin = $("#btnBegin");
-  const btnHome  = $("#btnHome");
-  const btnSave  = $("#btnSave");
+/* ---------- Inicialização ---------- */
 
-  if (btnStart) {
-    btnStart.style.pointerEvents = "auto";
-    btnStart.style.position      = "relative";
-    btnStart.style.zIndex        = "10";
-    btnStart.addEventListener("click", (e) => {
-      e.preventDefault();
-      showScreen("setup");
-    });
-  }
-
-  if (btnBegin) {
-    btnBegin.addEventListener("click", (e) => {
-      e.preventDefault();
-      const city     = ($("#inpCity")?.value || "").trim();
-      const partyIdx = parseInt($("#selParty")?.value || "0", 10) || 0;
-      const state    = $("#selState")?.value || "";
-
-      if (!city)  return toast("Digite o nome da cidade.");
-      if (!state) return toast("Selecione o estado.");
-
-      G.city     = city;
-      G.partyIdx = partyIdx;
-      G.state    = state;
-      G.officeIdx = 0; // garante começar vereador
-      G.termTurn  = 1;
-
-      saveGame();
-      beginMandate();
-    });
-  }
-
-  if (btnHome) {
-    btnHome.addEventListener("click", (e) => {
-      e.preventDefault();
-      showScreen("intro");
-    });
-  }
-
-  if (btnSave) {
-    btnSave.addEventListener("click", (e) => {
-      e.preventDefault();
-      saveGame();
-    });
-  }
-
-  const a1 = $("#btnAction1");
-  const a2 = $("#btnAction2");
-  const a3 = $("#btnAction3");
-  const a4 = $("#btnAction4");
-
-  if (a1) a1.onclick = actVoteProjects;
-  if (a2) a2.onclick = actProposeLaw;
-  if (a3) a3.onclick = actCrisis;
-  if (a4) a4.onclick = actCampaign;
-}
-
-// ---------- INIT ----------
 document.addEventListener("DOMContentLoaded", () => {
-  screens.intro = $("#screenIntro");
-  screens.setup = $("#screenSetup");
-  screens.game  = $("#screenGame");
+
+  screens = {
+    intro: $("#screenIntro"),
+    setup: $("#screenSetup"),
+    game : $("#screenGame")
+  };
+
+  fadeEl = $("#cineFade");
+  if (fadeEl) fadeEl.classList.add("hidden");
 
   setupModal();
   mountSetup();
   loadGame();
-  if (!G || !G.city) resetGame();
-
-  showScreen("intro");
   bindButtons();
+
+  show("intro");
 });
