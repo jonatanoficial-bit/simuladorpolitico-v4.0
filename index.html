@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Simulador Político 4.0 Deluxe</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador Político 4.0</title>
 
   <!-- Fontes -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
   <!-- Fade cinematográfico -->
@@ -20,13 +20,13 @@
   <section id="screenIntro" class="screen screen--intro show">
     <div class="intro-glass glass">
       <h1 class="intro-title">SIMULADOR POLÍTICO</h1>
-      <p class="intro-sub">Do bairro ao palácio. Você decide o destino do país.</p>
+      <p class="intro-sub">Do bairro ao palácio. Sua carreira, suas escolhas, suas consequências.</p>
       <button id="btnStart" class="btn btn-gold btn-xl">
         <span class="btn-shine"></span>
-        INICIAR
+        INICIAR JORNADA
       </button>
     </div>
-    <div class="intro-foot">Tema preto & dourado • Versão Deluxe 4.0</div>
+    <div class="intro-foot">Tema preto &amp; dourado • Versão Deluxe 4.0</div>
   </section>
 
   <!-- TELA DE CONFIGURAÇÃO -->
@@ -52,12 +52,11 @@
   </section>
 
   <!-- TELA PRINCIPAL DO JOGO -->
-  <section id="screenGame" class="screen screen-bg">
+  <section id="screenGame" class="screen">
     <!-- HUD SUPERIOR -->
     <header class="hud glass">
       <div class="hud-left">
-        <!-- LOGO DO PARTIDO -->
-        <img id="partyLogo" class="party-logo" src="" alt="Logo do partido">
+        <img id="partyLogo" class="party-logo" src="" alt="Logo do partido" />
         <div>
           <div class="hud-office" id="hudOffice"></div>
           <div class="hud-location" id="hudLocation"></div>
@@ -94,12 +93,13 @@
         <h3>Ações do cargo</h3>
         <button id="btnAction1" class="action-btn">Votar projetos</button>
         <button id="btnAction2" class="action-btn">Propor novo projeto</button>
-        <button id="btnAction3" class="action-btn">Gerir crises & políticas</button>
+        <button id="btnAction3" class="action-btn">Gerir crises &amp; políticas</button>
         <button id="btnAction4" class="action-btn">Campanha para próximo cargo</button>
       </aside>
 
-      <!-- CENTRO (AGORA COM IMAGEM DO CENÁRIO) -->
+      <!-- CENTRO (imagem + texto) -->
       <section class="col-main glass">
+        <!-- Imagem central do cenário -->
         <div id="officeImage" class="office-image"></div>
 
         <h3 id="mainTitle">Situação atual</h3>
@@ -123,6 +123,6 @@
     </div>
   </div>
 
-  <script src="game.js"></script>
+  <script src="assets/game.js"></script>
 </body>
 </html>
