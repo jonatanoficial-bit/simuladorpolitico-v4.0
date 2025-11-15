@@ -1,22 +1,24 @@
 /* =========================
-   Simulador Político – Game Engine
-   Versão 4.0 Estável
+   Simulador Político – Engine 4.1
+   - Imagem central fixa
+   - Modal com botões
+   - Projeto com árvore de decisão
+   - Auto-save localStorage
    ========================= */
 
 const $  = (q) => document.querySelector(q);
 const $$ = (q) => document.querySelectorAll(q);
 
-/* ---------- Telas ---------- */
-let screens = {};
-let fadeEl   = null;
+/* ---------- Telas & Fade ---------- */
 
-/* Exibe apenas uma tela */
+let screens = {};
+let fadeEl  = null;
+
 function show(id) {
-  Object.values(screens).forEach((s) => s && s.classList.remove("show"));
+  Object.values(screens).forEach(s => s && s.classList.remove("show"));
   if (screens[id]) screens[id].classList.add("show");
 }
 
-/* Transição com fade */
 function fadeTo(id) {
   if (!fadeEl) return show(id);
 
@@ -25,23 +27,21 @@ function fadeTo(id) {
 
   setTimeout(() => {
     show(id);
-
     setTimeout(() => {
       fadeEl.classList.remove("show");
-      setTimeout(() => fadeEl.classList.add("hidden"), 250);
-    }, 50);
-
-  }, 200);
+      setTimeout(() => fadeEl.classList.add("hidden"), 260);
+    }, 60);
+  }, 220);
 }
 
-/* ---------- Dados ---------- */
+/* ---------- Dados básicos ---------- */
 
 const parties = [
-  { sigla:"PTM",  nome:"Partido do Trabalhador Moderno", logo:"simulador_images/party_ptm.png"  },
-  { sigla:"PSLB", nome:"Partido Social Liberal do Brasil", logo:"simulador_images/party_pslb.png" },
+  { sigla:"PTM",  nome:"Partido do Trabalhador Moderno",        logo:"simulador_images/party_ptm.png"  },
+  { sigla:"PSLB", nome:"Partido Social Liberal do Brasil",      logo:"simulador_images/party_pslb.png" },
   { sigla:"MDBR", nome:"Movimento Democrático Brasileiro Real", logo:"simulador_images/party_mdbr.png" },
-  { sigla:"PVG",  nome:"Partido Verde Global", logo:"simulador_images/party_pvg.png"  },
-  { sigla:"PRP",  nome:"Partido Republicano Popular", logo:"simulador_images/party_prp.png"  }
+  { sigla:"PVG",  nome:"Partido Verde Global",                  logo:"simulador_images/party_pvg.png"  },
+  { sigla:"PRP",  nome:"Partido Republicano Popular",           logo:"simulador_images/party_prp.png"  },
 ];
 
 const states = [
@@ -58,32 +58,40 @@ const offices = [
   { name:"Governador",        type:"executive",   bg:"simulador_images/governor.jpg"  },
   { name:"Deputado Federal",  type:"legislative", bg:"simulador_images/federal.jpg"   },
   { name:"Senador",           type:"legislative", bg:"simulador_images/senate.jpg"    },
-  { name:"Presidente",        type:"executive",   bg:"simulador_images/president.jpg" }
+  { name:"Presidente",        type:"executive",   bg:"simulador_images/president.jpg" },
 ];
 
-/* ---------- Estado geral ---------- */
+/* ---------- Estado de jogo + save ---------- */
 
-const STORE_KEY = "SimPolitico_Save_v40";
+const STORE_KEY = "SimPolitico_v41_Save";
 
 let G = {
   partyIdx: 0,
   state: "São Paulo",
-  city: "Minha Cidade",
+  city: "Cidade Exemplo",
   officeIdx: 0,
   approvals: 0,
   popPeople: 50,
   popMedia:  50,
   popParty:  50,
   feed: [],
-  turn: 1
+  turn: 1,
 };
 
-/* Utilidades */
-const clamp = (v) => Math.max(0, Math.min(100, Math.round(v)));
-const rnd    = (n) => Math.floor(Math.random() * n);
-const rbool  = (p) => Math.random() < p;
+const clamp   = (v) => Math.max(0, Math.min(100, Math.round(v)));
+const rnd     = (n) => Math.floor(Math.random() * n);
+const rbool   = (p) => Math.random() < p;
 
-/* ---------- Modal / fallback ---------- */
+/* Auto-save sempre que HUD for atualizado */
+function autoSave() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(G));
+  } catch(e) {
+    console.warn("Falha ao salvar:", e);
+  }
+}
+
+/* ---------- Modal estilizado ---------- */
 
 let modal, modalTitle, modalBody, modalActions;
 
@@ -92,38 +100,33 @@ function setupModal() {
   modalTitle   = $("#modalTitle");
   modalBody    = $("#modalBody");
   modalActions = $("#modalActions");
+
+  if (modal) {
+    modal.addEventListener("click", (e)=>{
+      if (e.target === modal) closeModal();
+    });
+  }
 }
 
 function openModal(title, htmlBody, actions) {
-
-  /* Se NÃO existir modal no HTML → usamos confirm()/alert() */
   if (!modal) {
-    const txt = (title ? title + "\n\n" : "") + htmlBody.replace(/<[^>]+>/g, "");
-
-    if (actions && actions.length === 2) {
-      const ok = confirm(txt);
-
-      if (ok && actions[0].onClick) actions[0].onClick();
-      if (!ok && actions[1].onClick) actions[1].onClick();
-    } else {
-      alert(txt);
-      if (actions && actions[0] && actions[0].onClick) actions[0].onClick();
-    }
-
+    // Fallback simples se o HTML da modal não existir
+    const txt = (title ? title + "\n\n" : "") + htmlBody.replace(/<[^>]+>/g,"");
+    alert(txt);
+    if (actions && actions[0] && actions[0].onClick) actions[0].onClick();
     return;
   }
 
-  /* Modal estilizado */
-  modalTitle.innerHTML = title;
-  modalBody.innerHTML  = htmlBody;
+  modalTitle.innerHTML = title || "";
+  modalBody.innerHTML  = htmlBody || "";
   modalActions.innerHTML = "";
 
-  actions.forEach((a) => {
-    const btn = document.createElement("button");
-    btn.className = "btn " + (a.className || "");
-    btn.textContent = a.label;
-    btn.onclick = a.onClick;
-    modalActions.appendChild(btn);
+  (actions || []).forEach(a => {
+    const b = document.createElement("button");
+    b.className   = "btn " + (a.className || "");
+    b.textContent = a.label;
+    b.onclick     = a.onClick || (()=>{});
+    modalActions.appendChild(b);
   });
 
   modal.classList.remove("hidden");
@@ -131,6 +134,12 @@ function openModal(title, htmlBody, actions) {
 
 function closeModal() {
   if (modal) modal.classList.add("hidden");
+}
+
+function toast(msg) {
+  openModal("Informação", msg, [
+    { label:"OK", className:"btn-gold", onClick: closeModal }
+  ]);
 }
 
 /* ---------- Feed ---------- */
@@ -144,7 +153,6 @@ function addFeed(tag, text) {
 function renderFeed() {
   const box = $("#feed");
   if (!box) return;
-
   box.innerHTML = G.feed.map(f => `
     <div class="feed-item">
       <div class="feed-tag">${f.tag}</div>
@@ -153,7 +161,14 @@ function renderFeed() {
   `).join("");
 }
 
-/* ---------- HUD ---------- */
+/* ---------- HUD, imagem central e layout ---------- */
+
+function setMain(title, html) {
+  const t = $("#mainTitle");
+  const m = $("#mainText");
+  if (t) t.textContent = title;
+  if (m) m.innerHTML   = html;
+}
 
 function updateHUD() {
   const office = offices[G.officeIdx];
@@ -162,320 +177,431 @@ function updateHUD() {
   $("#hudOffice").textContent   = office.name;
   $("#hudLocation").textContent = `${G.city} - ${G.state} • Mandato ${G.turn}`;
 
-  $("#partyLogo").src = party.logo;
+  const logo = $("#partyLogo");
+  if (logo && party) logo.src = party.logo || "";
 
-  $("#popPeople").textContent = G.popPeople + "%";
-  $("#popMedia").textContent  = G.popMedia  + "%";
-  $("#popParty").textContent  = G.popParty  + "%";
+  $("#popPeople").textContent = clamp(G.popPeople) + "%";
+  $("#popMedia").textContent  = clamp(G.popMedia)  + "%";
+  $("#popParty").textContent  = clamp(G.popParty)  + "%";
 
   const pct = Math.min(100, Math.round((G.approvals / 15) * 100));
-  $("#txtProgress").textContent = pct + "%";
-  $("#barProgress").style.width = pct + "%";
+  $("#txtProgress").textContent      = pct + "%";
+  $("#barProgress").style.width      = pct + "%";
 
-  // Imagem central
+  // Imagem grande no centro (como você gostou)
   const centerImg = $("#centerImage");
-  if (centerImg) centerImg.src = office.bg;
+  if (centerImg) {
+    centerImg.src = office.bg;
+    centerImg.alt = office.name;
+  }
 
-  $("#screenGame").style.backgroundImage =
-    `linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,.93)),url('${office.bg}')`;
+  const scrGame = $("#screenGame");
+  if (scrGame) {
+    scrGame.style.backgroundImage =
+      `linear-gradient(180deg,rgba(0,0,0,.90),rgba(0,0,0,.96)),url('${office.bg}')`;
+  }
+
+  autoSave();
 }
 
-/* ---------- Ações do Jogo ---------- */
+/* ---------- Ações: Votação ---------- */
 
-function actVote() {
+function actVoteProjects() {
   const projetos = [
     "Reforma da frota de ônibus",
     "Incentivo fiscal para pequenas empresas",
     "Requalificação de escolas públicas",
-    "Zona verde urbana",
-    "Programa Saúde Já"
+    "Programa de combate à violência",
+    "Parque urbano sustentável"
   ];
 
-  const p = projetos[rnd(projetos.length)];
-  const total = 30 + rnd(40);
-  const sim   = Math.round(total * (0.4 + Math.random()*0.3));
-  const nao   = total - sim;
-  const passou = sim > nao;
+  const p      = projetos[rnd(projetos.length)];
+  const total  = 30 + rnd(40);
+  const yes    = Math.round(total * (0.4 + Math.random()*0.3));
+  const no     = total - yes;
+  const passou = yes > no;
 
   openModal(
     "Votação em plenário",
-    `Em pauta: <b>${p}</b>.<br>Placar: <b>${sim}</b> SIM • <b>${nao}</b> NÃO.<br><br>Como deseja votar?`,
+    `Em pauta: <b>${p}</b>.<br><br>Placar: <b>${yes}</b> SIM • <b>${no}</b> NÃO.<br><br><b>Como você deseja votar?</b>`,
     [
       {
         label:"Votar SIM",
         className:"btn-gold",
-        onClick: () => resolveVote(true, passou, p)
-      },
-      {
-        label:"Votar NÃO",
-        onClick: () => resolveVote(false, passou, p)
-      }
-    ]
-  );
-}
-
-function resolveVote(votouSim, passou, projeto) {
-  let dp = 0, dm = 0, dpt = 0;
-
-  if (passou && votouSim) {
-    dp+=3; dm+=2; dpt+=2;
-    G.approvals++;
-    addFeed("Votação", `Você apoiou <b>${projeto}</b> e o projeto foi aprovado.`);
-  }
-  else if (!passou && !votouSim) {
-    dp+=1; dm+=2; dpt+=1;
-    addFeed("Votação", `Você votou contra <b>${projeto}</b>, rejeitado.`);
-  }
-  else {
-    dp-=2; dm-=1;
-    addFeed("Votação", `Sua decisão sobre <b>${projeto}</b> gerou divisão.`);
-  }
-
-  G.popPeople += dp;
-  G.popMedia  += dm;
-  G.popParty  += dpt;
-  G.turn++;
-
-  updateHUD();
-
-  setMain(
-    "Resultado da votação",
-    `
-      Povo: ${(dp>=0?"+":"")+dp}%<br>
-      Mídia: ${(dm>=0?"+":"")+dm}%<br>
-      Partido: ${(dpt>=0?"+":"")+dpt}%
-    `
-  );
-}
-
-/* ---------- Propor Projeto ---------- */
-
-function actPropose() {
-  const ideias = [
-    "Plano de Wi-Fi Público",
-    "Ciclovias Inteligentes",
-    "Kit Educação Digital",
-    "Programa Alimentar",
-    "Transporte Verde"
-  ];
-
-  const p = ideias[rnd(ideias.length)];
-
-  openModal(
-    "Propor Projeto",
-    `Deseja protocolar o projeto:<br><b>${p}</b>?`,
-    [
-      {
-        label:"Protocolar",
-        className:"btn-gold",
-        onClick: () => {
+        onClick:()=>{
           closeModal();
-          const aprovado = rbool(0.5 + (G.popParty-50)/200);
-
-          if (aproprovado) {
-            G.approvals++;
-            G.popPeople+=3;
-            G.popMedia +=2;
-            G.popParty +=2;
-            addFeed("Projeto aprovado", `Seu projeto <b>${p}</b> virou lei.`);
-            setMain("Projeto aprovado", "A população gostou da iniciativa.");
-          } else {
-            G.popPeople--;
-            G.popMedia -=2;
-            addFeed("Projeto rejeitado", `O projeto <b>${p}</b> foi arquivado.`);
-            setMain("Projeto rejeitado", "A mídia criticou sua articulação.");
-          }
-          G.turn++;
-          updateHUD();
+          resolveVote(true, passou, p, yes, no);
         }
       },
       {
-        label:"Cancelar",
-        onClick: closeModal
+        label:"Votar NÃO",
+        onClick:()=>{
+          closeModal();
+          resolveVote(false, passou, p, yes, no);
+        }
       }
     ]
   );
 }
 
-/* ---------- Crises ---------- */
+function resolveVote(votouSim, passou, projeto, yes, no) {
+  let dPovo = 0, dMidia = 0, dPart = 0;
 
-function actCrisis() {
-  const office = offices[G.officeIdx];
-  if (office.type !== "executive") {
-    return alert("Somente cargos do Executivo enfrentam crises.");
+  if (passou && votouSim) {
+    dPovo+=3; dMidia+=2; dPart+=2;
+    G.approvals++;
+    addFeed("Votação", `Você apoiou <b>${projeto}</b>, aprovado por ${yes} a ${no}.`);
+  } else if (!passou && !votouSim) {
+    dPovo+=1; dMidia+=2; dPart+=1;
+    addFeed("Votação", `Você votou contra <b>${projeto}</b>, rejeitado por ${no} a ${yes}.`);
+  } else {
+    dPovo-=2; dMidia-=1;
+    addFeed("Votação", `Seu voto em <b>${projeto}</b> desagradou parte do eleitorado.`);
   }
 
-  const crises = [
-    {area:"Saúde", op:["Mutirão","UPA","Recursos"], impact:[+3,+4,+2]},
-    {area:"Segurança", op:["Policiamento","Iluminação","Guarda"], impact:[+3,+2,+2]},
-    {area:"Economia", op:["Redução de impostos","Atração de empresas","Cursos"], impact:[+2,+3,+3]}
-  ];
+  G.popPeople += dPovo;
+  G.popMedia  += dMidia;
+  G.popParty  += dPart;
+  G.turn++;
 
-  const c = crises[rnd(crises.length)];
+  updateHUD();
+  setMain(
+    "Resultado da votação",
+    `
+      Impactos:<br>
+      Povo: ${(dPovo>=0?"+":"")+dPovo}%<br>
+      Mídia: ${(dMidia>=0?"+":"")+dMidia}%<br>
+      Partido: ${(dPart>=0?"+":"")+dPart}%
+    `
+  );
+}
+
+/* ---------- Ações: PROJETO com árvore de decisão ---------- */
+
+const PROJECT_TREE = {
+  "Saúde": [
+    "Construir uma nova UPA 24h",
+    "Contratar mais médicos para postos",
+    "Programa de remédios gratuitos"
+  ],
+  "Educação": [
+    "Reformar escolas antigas",
+    "Implantar laboratório de informática",
+    "Formação continuada para professores"
+  ],
+  "Segurança": [
+    "Aumentar policiamento em áreas de risco",
+    "Iluminação pública em bairros perigosos",
+    "Programa Guarda Comunitária"
+  ],
+  "Economia": [
+    "Reduzir impostos para pequenas empresas",
+    "Criar incubadora de startups",
+    "Programa de qualificação profissional"
+  ],
+  "Meio ambiente": [
+    "Criar parque ecológico",
+    "Programa de reciclagem nos bairros",
+    "Projeto de hortas comunitárias"
+  ]
+};
+
+function actProposeLaw() {
+  // 1ª etapa: escolher área
+  const areas = Object.keys(PROJECT_TREE);
+  let body = "Escolha a área do seu projeto:<br><br>";
+  areas.forEach(a => body += `• ${a}<br>`);
 
   openModal(
-    "Crise em " + c.area,
-    "Escolha uma ação:",
-    c.op.map((acao,i)=>({
-      label: acao,
+    "Novo projeto de lei",
+    body,
+    areas.map(area => ({
+      label: area,
+      className: "btn-gold",
       onClick:()=>{
-        let d = c.impact[i];
-        if (rbool(0.2)) d -= 2;
-
-        G.popPeople += d;
-        G.popMedia  += d>=0?1:-1;
-        G.popParty  += d>=0?1:-2;
-        G.turn++;
-
-        addFeed("Crise", `Você atuou em <b>${c.area}</b>: ${acao}`);
-        setMain("Crise", `Impacto popular: ${d>=0?"+":""}${d}%`);
-
-        updateHUD();
+        closeModal();
+        chooseProjectDetail(area);
       }
     }))
   );
 }
 
-/* ---------- Campanha ---------- */
+function chooseProjectDetail(area) {
+  const options = PROJECT_TREE[area] || [];
+  let body = `Área escolhida: <b>${area}</b>.<br><br>Agora escolha o foco do projeto:<br><br>`;
+  options.forEach(o => body += `• ${o}<br>`);
 
-function actCampaign() {
+  openModal(
+    "Detalhamento do projeto",
+    body,
+    options.map(o => ({
+      label: o,
+      className: "btn-gold",
+      onClick:()=>{
+        closeModal();
+        finalizeProject(area, o);
+      }
+    }))
+  );
+}
 
-  if (G.popPeople < 60) {
-    alert("Popularidade mínima: 60% para campanha.");
+function finalizeProject(area, descricao) {
+  const projetoNome = `${area}: ${descricao}`;
+
+  // chance baseada em popularidade e apoio do partido
+  let chance = 0.45;
+  chance += (G.popPeople - 50) / 300;
+  chance += (G.popParty  - 50) / 400;
+
+  const aprovado = rbool(chance);
+
+  if (aprovado) {
+    G.approvals++;
+    G.popPeople += 4;
+    G.popMedia  += 2;
+    G.popParty  += 3;
+
+    addFeed("Projeto aprovado", `Seu projeto <b>${projetoNome}</b> foi aprovado e virou lei.`);
+    setMain(
+      "Projeto aprovado",
+      `A população e a mídia reagiram bem ao projeto <b>${projetoNome}</b>.`
+    );
+  } else {
+    G.popPeople -= 1;
+    G.popMedia  -= 3;
+
+    addFeed("Projeto rejeitado", `O projeto <b>${projetoNome}</b> foi barrado nas comissões.`);
+    setMain(
+      "Projeto rejeitado",
+      `Sua articulação não foi suficiente para aprovar <b>${projetoNome}</b>.`
+    );
+  }
+
+  G.turn++;
+  updateHUD();
+}
+
+/* ---------- Crises (apenas Executivo) ---------- */
+
+function actCrisis() {
+  const office = offices[G.officeIdx];
+  if (office.type !== "executive") {
+    toast("Somente cargos do Executivo (Prefeito, Governador, Presidente) enfrentam crises diretas.");
     return;
   }
 
-  const next = offices[G.officeIdx+1];
-  if (!next) return alert("Você já está no cargo máximo!");
+  const crises = [
+    { area:"Saúde",     op:["Mutirão de consultas","Construir nova UPA","Repassar recursos a hospitais"], impact:[+3,+4,+2] },
+    { area:"Segurança", op:["Aumentar policiamento","Melhorar iluminação","Criar guarda comunitária"],   impact:[+3,+2,+2] },
+    { area:"Economia",  op:["Reduzir impostos","Atrair empresas","Programa de qualificação"],            impact:[+2,+3,+3] },
+  ];
+
+  const c = crises[rnd(crises.length)];
+  let body = `Crise em <b>${c.area}</b>.<br><br>Escolha sua estratégia:<br><br>`;
+  c.op.forEach(o => body += `• ${o}<br>`);
+
+  const actions = c.op.map((o,i)=>({
+    label:o,
+    className: i===0 ? "btn-gold" : "",
+    onClick:()=>{
+      closeModal();
+      let d = c.impact[i];
+      if (rbool(0.2)) d -= 2; // pode dar ruim
+
+      G.popPeople += d;
+      G.popMedia  += d>=0 ? 1 : -1;
+      G.popParty  += d>=0 ? 1 : -2;
+      G.turn++;
+
+      addFeed("Crise", `Você atuou em <b>${c.area}</b> com a medida: ${o}.`);
+      setMain("Gestão de crise", `Impacto popular: ${d>=0?"+":""}${d}%`);
+
+      updateHUD();
+      checkImpeachment();
+    }
+  }));
+
+  openModal("Gestão de crise", body, actions);
+}
+
+function checkImpeachment() {
+  if (clamp(G.popPeople) <= 0) {
+    addFeed("Impeachment", "Sua popularidade caiu a 0%. Você perdeu o cargo.");
+    setMain("Impeachment", "Você foi afastado. A carreira recomeça como Vereador.");
+    G.officeIdx = 0;
+    G.popPeople = 50;
+    G.popMedia  = 50;
+    G.popParty  = 50;
+    G.approvals = 0;
+    G.turn      = 1;
+    updateHUD();
+  }
+}
+
+/* ---------- Campanha para próximo cargo ---------- */
+
+function actCampaign() {
+  if (G.officeIdx >= offices.length - 1) {
+    toast("Você já alcançou o cargo máximo.");
+    return;
+  }
+
+  if (clamp(G.popPeople) < 60) {
+    toast("Popularidade mínima de 60% com o povo para disputar o próximo cargo.");
+    return;
+  }
+
+  const next = offices[G.officeIdx + 1];
 
   openModal(
     "Campanha eleitoral",
-    `Lançar campanha para <b>${next.name}</b>?`,
+    `Deseja lançar campanha para <b>${next.name}</b>?<br><br>A chance de vitória depende da sua popularidade com Povo, Mídia e Partido.`,
     [
       {
-        label:"Iniciar campanha",
+        label:"Lançar campanha",
         className:"btn-gold",
         onClick:()=>{
           closeModal();
-
-          const base = (G.popPeople + G.popMedia + G.popParty)/3;
-          let pontos = 0;
-          for (let i=0;i<5;i++) if (rbool(0.45+base/200)) pontos++;
-
-          if (pontos>=3) {
-            G.officeIdx++;
-            G.turn = 1;
-            G.approvals = 0;
-            G.popMedia+=2;
-            addFeed("Eleições", `Você foi eleito <b>${next.name}</b>!`);
-            setMain("Vitória!", `Parabéns! Agora você é <b>${next.name}</b>.`);
-          } else {
-            G.popPeople-=4;
-            G.popMedia -=3;
-            addFeed("Eleições", `Sua campanha para <b>${next.name}</b> falhou.`);
-            setMain("Derrota eleitoral", "Tente novamente mais tarde.");
-          }
-
-          updateHUD();
+          runElection(next);
         }
       },
-      {
-        label:"Cancelar",
-        onClick: closeModal
-      }
+      { label:"Ainda não", onClick: closeModal }
     ]
   );
 }
 
-/* ---------- Sistema de Salvamento ---------- */
+function runElection(nextOffice) {
+  const base = (clamp(G.popPeople) + clamp(G.popMedia) + clamp(G.popParty)) / 3;
+  let pontos = 0;
+  for (let i=0;i<5;i++) if (rbool(0.45 + base/200)) pontos++;
 
-function saveGame() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(G));
-  alert("Progresso salvo!");
+  if (pontos >= 3) {
+    addFeed("Eleições", `Você foi eleito <b>${nextOffice.name}</b>!`);
+    G.officeIdx = offices.indexOf(nextOffice);
+    G.turn      = 1;
+    G.approvals = 0;
+    G.popMedia += 2;
+
+    setMain("Vitória nas urnas", `Sua campanha foi bem-sucedida. Agora você é <b>${nextOffice.name}</b>.`);
+  } else {
+    addFeed("Eleições", `Sua campanha para <b>${nextOffice.name}</b> não teve votos suficientes.`);
+    G.popPeople -= 4;
+    G.popMedia  -= 3;
+    setMain("Derrota eleitoral", "O resultado nas urnas não foi suficiente. Trabalhe mais e tente novamente.");
+  }
+
+  updateHUD();
 }
+
+/* ---------- Save / Load ---------- */
 
 function loadGame() {
-  const data = localStorage.getItem(STORE_KEY);
-  if (!data) return;
-  G = Object.assign(G, JSON.parse(data));
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    G = Object.assign(G, data || {});
+  } catch(e) {
+    console.warn("Falha ao carregar save:", e);
+  }
 }
 
-/* ---------- Setup ---------- */
-
-function setMain(title, html) {
-  $("#mainTitle").textContent = title;
-  $("#mainText").innerHTML    = html;
-}
+/* ---------- Setup inicial ---------- */
 
 function mountSetup() {
-  const p = $("#selParty");
-  parties.forEach((pt,i)=>{
-    const o = document.createElement("option");
-    o.value=i;
-    o.textContent=pt.sigla+" - "+pt.nome;
-    p.appendChild(o);
-  });
+  const selParty = $("#selParty");
+  const selState = $("#selState");
 
-  const s = $("#selState");
-  states.forEach(st=>{
-    const o = document.createElement("option");
-    o.value = st;
-    o.textContent = st;
-    s.appendChild(o);
-  });
+  if (selParty) {
+    selParty.innerHTML = "";
+    parties.forEach((p,i)=>{
+      const o = document.createElement("option");
+      o.value = i;
+      o.textContent = `${p.sigla} - ${p.nome}`;
+      selParty.appendChild(o);
+    });
+  }
+
+  if (selState) {
+    selState.innerHTML = "";
+    states.forEach(s=>{
+      const o = document.createElement("option");
+      o.value = s;
+      o.textContent = s;
+      selState.appendChild(o);
+    });
+  }
 }
-
-/* ---------- Bind ---------- */
-
-function bindButtons() {
-
-  $("#btnStart").onclick = ()=>fadeTo("setup");
-
-  $("#btnBegin").onclick = ()=>{
-    const city = $("#inpCity").value.trim();
-    if (!city) return alert("Digite sua cidade.");
-
-    G.city     = city;
-    G.state    = $("#selState").value;
-    G.partyIdx = parseInt($("#selParty").value);
-
-    beginMandate();
-  };
-
-  $("#btnAction1").onclick = actVote;
-  $("#btnAction2").onclick = actPropose;
-  $("#btnAction3").onclick = actCrisis;
-  $("#btnAction4").onclick = actCampaign;
-
-  $("#btnSave").onclick = saveGame;
-  $("#btnHome").onclick = ()=>fadeTo("intro");
-}
-
-/* ---------- Mandato ---------- */
 
 function beginMandate() {
   renderFeed();
   updateHUD();
-
   setMain(
     "Início de mandato",
-    `Você assumiu o cargo de <b>${offices[G.officeIdx].name}</b> em <b>${G.city} - ${G.state}</b>.`
+    `Você assumiu o cargo de <b>${offices[G.officeIdx].name}</b> em <b>${G.city} - ${G.state}</b>, pelo partido <b>${parties[G.partyIdx].sigla}</b>.`
   );
-
-  addFeed("Posse", `Começou como <b>${offices[G.officeIdx].name}</b> em ${G.city}.`);
-
+  addFeed("Posse", `Novo mandato como <b>${offices[G.officeIdx].name}</b> em ${G.city}.`);
   fadeTo("game");
 }
 
-/* ---------- Inicialização ---------- */
+/* ---------- Bind de botões ---------- */
+
+function bindButtons() {
+  const btnStart = $("#btnStart");
+  const btnBegin = $("#btnBegin");
+  const btnHome  = $("#btnHome");
+
+  if (btnStart) {
+    btnStart.addEventListener("click",(e)=>{
+      e.preventDefault();
+      fadeTo("setup");
+    });
+  }
+
+  if (btnBegin) {
+    btnBegin.addEventListener("click",(e)=>{
+      e.preventDefault();
+      const city  = ($("#inpCity")?.value || "").trim();
+      const state = $("#selState")?.value || "";
+      const pIdx  = parseInt($("#selParty")?.value || "0", 10) || 0;
+
+      if (!city) {
+        toast("Digite a cidade para começar.");
+        return;
+      }
+
+      G.city     = city;
+      G.state    = state;
+      G.partyIdx = pIdx;
+
+      beginMandate();
+    });
+  }
+
+  if (btnHome) {
+    btnHome.addEventListener("click",(e)=>{
+      e.preventDefault();
+      fadeTo("intro");
+    });
+  }
+
+  $("#btnAction1")?.addEventListener("click", actVoteProjects);
+  $("#btnAction2")?.addEventListener("click", actProposeLaw);
+  $("#btnAction3")?.addEventListener("click", actCrisis);
+  $("#btnAction4")?.addEventListener("click", actCampaign);
+
+  $("#btnSave")?.addEventListener("click", ()=>{
+    autoSave();
+    toast("Progresso salvo no dispositivo.");
+  });
+}
+
+/* ---------- INIT ---------- */
 
 document.addEventListener("DOMContentLoaded", () => {
-
-  screens = {
-    intro: $("#screenIntro"),
-    setup: $("#screenSetup"),
-    game : $("#screenGame")
-  };
+  screens.intro = $("#screenIntro");
+  screens.setup = $("#screenSetup");
+  screens.game  = $("#screenGame");
 
   fadeEl = $("#cineFade");
   if (fadeEl) fadeEl.classList.add("hidden");
@@ -484,6 +610,7 @@ document.addEventListener("DOMContentLoaded", () => {
   mountSetup();
   loadGame();
   bindButtons();
+  updateHUD();   // caso já exista save
 
   show("intro");
 });
