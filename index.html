@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador Político Deluxe</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg: #0e0e0e;
+      --accent: #c8a253;
+      --text: #f5f5f5;
+      --card-bg: rgba(32, 32, 32, 0.9);
+      --button-bg: #262626;
+      --button-hover: #3a3a3a;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Poppins, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      overflow: hidden;
+      min-height: 100vh;
+    }
+    h1, h2, h3 {
+      font-family: 'Playfair Display', serif;
+    }
+    /* Generic screens */
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background-size: cover;
+      background-position: center;
+    }
+    .screen.active {
+      display: flex;
+    }
+    /* Overlay card */
+    .card {
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      max-width: 90%;
+    }
+    .button {
+      background: var(--button-bg);
+      border: none;
+      color: var(--text);
+      padding: 0.75rem 1.2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      margin: 0.5rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .button:hover {
+      background: var(--button-hover);
+    }
+    /* Start screen */
+    #start-screen {
+      background-image: url('simulador_images/cover.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+    #start-screen .card {
+      text-align: center;
+    }
+    /* Selection screen */
+    #selection-screen .card {
+      width: 600px;
+    }
+    .logo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .logo-grid img {
+      width: 100%;
+      height: 80px;
+      object-fit: contain;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .logo-grid img.selected {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+    .input-group {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .input-group label {
+      margin-bottom: 0.5rem;
+    }
+    .input-group input {
+      padding: 0.5rem;
+      border: 1px solid #444;
+      border-radius: 6px;
+      background: #181818;
+      color: var(--text);
+    }
+    /* Main game interface */
+    #game-screen {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    #header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: rgba(0,0,0,0.6);
+    }
+    #actions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 1rem;
+    }
+    #feed {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      background: rgba(0,0,0,0.5);
+    }
+    #feed p {
+      margin-bottom: 0.75rem;
+    }
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal {
+      background: var(--card-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      max-width: 500px;
+    }
+    .modal h3 {
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Start Screen -->
+  <div id="start-screen" class="screen active">
+    <div class="card">
+      <h1>Simulador Político</h1>
+      <p>Viva a experiência da política brasileira de forma realista.</p>
+      <button class="button" id="start-btn">Iniciar</button>
+    </div>
+  </div>
+  <!-- Selection Screen -->
+  <div id="selection-screen" class="screen">
+    <div class="card">
+      <h2>Escolha seu partido</h2>
+      <div class="logo-grid" id="party-grid"></div>
+      <div class="input-group">
+        <label for="candidate-name">Seu nome</label>
+        <input type="text" id="candidate-name" placeholder="Digite seu nome" />
+      </div>
+      <button class="button" id="confirm-selection">Confirmar</button>
+    </div>
+  </div>
+  <!-- Main Game Screen -->
+  <div id="game-screen" class="screen">
+    <div id="header">
+      <div id="player-info"></div>
+      <div id="office-info"></div>
+    </div>
+    <div id="actions"></div>
+    <div id="feed"></div>
+  </div>
+  <!-- Modal overlay for decisions -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal-box">
+      <h3 id="modal-title"></h3>
+      <p id="modal-text"></p>
+      <div id="modal-buttons" style="margin-top: 1rem;"></div>
+    </div>
+  </div>
+  <script>
+    // Game state
+    const G = {
+      party: null,
+      name: '',
+      officeIndex: 0,
+      popularity: 50,
+      feed: []
+    };
+    // Offices definitions with backgrounds and type
+    const offices = [
+      { name: 'Vereador', type: 'legislative', bg: 'simulador_images/municipal.jpg' },
+      { name: 'Deputado Estadual', type: 'legislative', bg: 'simulador_images/assembly.jpg' },
+      { name: 'Deputado Federal', type: 'legislative', bg: 'simulador_images/federal.jpg' },
+      { name: 'Senador', type: 'legislative', bg: 'simulador_images/senate.jpg' },
+      { name: 'Prefeito', type: 'executive', bg: 'simulador_images/cityhall.jpg' },
+      { name: 'Governador', type: 'executive', bg: 'simulador_images/governor.jpg' },
+      { name: 'Presidente', type: 'executive', bg: 'simulador_images/president.jpg' }
+    ];
+    // Party logos
+    const parties = [
+      { id: 'PRP', img: 'simulador_images/party_prp.png' },
+      { id: 'PSLB', img: 'simulador_images/party_pslb.png' },
+      { id: 'PTM', img: 'simulador_images/party_ptm.png' },
+      { id: 'PVG', img: 'simulador_images/party_pvg.png' },
+      { id: 'MDBR', img: 'simulador_images/party_mdbr.png' }
+    ];
+    const startScreen = document.getElementById('start-screen');
+    const selectionScreen = document.getElementById('selection-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const partyGrid = document.getElementById('party-grid');
+    const confirmBtn = document.getElementById('confirm-selection');
+    const playerInfo = document.getElementById('player-info');
+    const officeInfo = document.getElementById('office-info');
+    const actionsDiv = document.getElementById('actions');
+    const feedDiv = document.getElementById('feed');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalTitle = document.getElementById('modal-title');
+    const modalText = document.getElementById('modal-text');
+    const modalButtons = document.getElementById('modal-buttons');
+
+    // Populate party grid
+    parties.forEach((p, index) => {
+      const img = document.createElement('img');
+      img.src = p.img;
+      img.alt = p.id;
+      img.addEventListener('click', () => selectParty(index));
+      partyGrid.appendChild(img);
+    });
+    function selectParty(idx) {
+      G.party = parties[idx].id;
+      // highlight selected
+      [...partyGrid.children].forEach((child, i) => {
+        child.classList.toggle('selected', i === idx);
+      });
+    }
+    // Start button
+    document.getElementById('start-btn').addEventListener('click', () => {
+      startScreen.classList.remove('active');
+      selectionScreen.classList.add('active');
+    });
+    // Confirm selection
+    confirmBtn.addEventListener('click', () => {
+      const nameInput = document.getElementById('candidate-name');
+      if (!G.party) {
+        alert('Selecione um partido.');
+        return;
+      }
+      const nm = nameInput.value.trim();
+      if (!nm) {
+        alert('Digite seu nome.');
+        return;
+      }
+      G.name = nm;
+      selectionScreen.classList.remove('active');
+      beginMandate();
+    });
+    // Begin the mandate for current office
+    function beginMandate() {
+      const office = offices[G.officeIndex];
+      gameScreen.style.backgroundImage = `url('${office.bg}')`;
+      gameScreen.classList.add('active');
+      updateHeader();
+      updateActions();
+      feedDiv.innerHTML = '';
+      addFeed(`Iniciando mandato como ${office.name}. Boa sorte!`);
+    }
+    function updateHeader() {
+      playerInfo.innerHTML = `<strong>${G.name}</strong> - Partido ${G.party}`;
+      const office = offices[G.officeIndex];
+      officeInfo.innerHTML = `<strong>${office.name}</strong> | Popularidade: ${G.popularity}%`;
+    }
+    function updateActions() {
+      actionsDiv.innerHTML = '';
+      const office = offices[G.officeIndex];
+      // define actions based on type
+      let acts = [];
+      if (office.type === 'legislative') {
+        acts = [
+          { id: 'vote', label: 'Votar Projeto', fn: actVote },
+          { id: 'propose', label: 'Propor Lei', fn: actPropose },
+          { id: 'fiscalize', label: 'Fiscalizar', fn: actFiscalize },
+          { id: 'campanha', label: 'Campanha', fn: actCampaign }
+        ];
+      } else {
+        acts = [
+          { id: 'sanction', label: 'Sancionar/Vetar', fn: actSanction },
+          { id: 'crisis', label: 'Gerenciar Crise', fn: actCrisis },
+          { id: 'budget', label: 'Orçamento', fn: actBudget },
+          { id: 'campanha', label: 'Campanha', fn: actCampaign }
+        ];
+      }
+      acts.forEach(a => {
+        const btn = document.createElement('button');
+        btn.className = 'button';
+        btn.textContent = a.label;
+        btn.addEventListener('click', a.fn);
+        actionsDiv.appendChild(btn);
+      });
+    }
+    function addFeed(msg) {
+      const p = document.createElement('p');
+      p.textContent = msg;
+      feedDiv.prepend(p);
+    }
+    // Actions for legislative
+    function actVote() {
+      const bill = randomBill();
+      showModal('Votar Projeto', `Projeto em pauta: ${bill}.\nQual é o seu voto?`, [
+        { label: 'Sim', action: () => {
+            G.popularity += 2;
+            addFeed(`Você votou SIM no projeto ${bill}. Popularidade aumentou.`);
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Não', action: () => {
+            G.popularity -= 2;
+            addFeed(`Você votou NÃO no projeto ${bill}. Popularidade diminuiu.`);
+            closeModal();
+            updateHeader();
+          } }
+      ]);
+    }
+    function actPropose() {
+      const areas = ['Saúde','Educação','Segurança','Economia','Meio Ambiente'];
+      const area = areas[Math.floor(Math.random()*areas.length)];
+      const project = `Projeto de ${area}`;
+      showModal('Propor Lei', `Deseja apresentar o ${project}?`, [
+        { label: 'Apresentar', action: () => {
+            // random approval
+            const approved = Math.random() < 0.6;
+            if (approved) {
+              G.popularity += 5;
+              addFeed(`Seu projeto de ${area} foi aprovado. Popularidade aumentou.`);
+            } else {
+              G.popularity -= 3;
+              addFeed(`Seu projeto de ${area} foi rejeitado. Popularidade diminuiu.`);
+            }
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Cancelar', action: closeModal }
+      ]);
+    }
+    function actFiscalize() {
+      showModal('Fiscalização', 'Você iniciou uma fiscalização de obras públicas. Encontrou irregularidades?', [
+        { label: 'Sim', action: () => {
+            G.popularity += 4;
+            addFeed('Você denunciou irregularidades e ganhou crédito com a população.');
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Não', action: () => {
+            G.popularity -= 1;
+            addFeed('A fiscalização não encontrou problemas, mas perdeu tempo precioso.');
+            closeModal();
+            updateHeader();
+          } }
+      ]);
+    }
+    // Executive actions
+    function actSanction() {
+      showModal('Sancionar/Vetar', 'Um projeto de lei aprovado pelo legislativo chegou para sua sanção. O que você faz?', [
+        { label: 'Sancionar', action: () => {
+            G.popularity += 3;
+            addFeed('Você sancionou a lei e agradou a maioria.');
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Vetá-la', action: () => {
+            G.popularity -= 3;
+            addFeed('Você vetou a lei. Parlamentares ficaram descontentes.');
+            closeModal();
+            updateHeader();
+          } }
+      ]);
+    }
+    function actCrisis() {
+      const crises = ['enchente','epidemia','crise econômica','greve policial'];
+      const crise = crises[Math.floor(Math.random()*crises.length)];
+      showModal('Gerenciamento de Crise', `Uma ${crise} ocorreu. Qual sua resposta?`, [
+        { label: 'Investir Recursos', action: () => {
+            G.popularity += 4;
+            addFeed(`Você investiu recursos para conter a ${crise}. Popularidade aumentou.`);
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Ignorar', action: () => {
+            G.popularity -= 6;
+            addFeed(`Você ignorou a ${crise}. A população está indignada.`);
+            closeModal();
+            updateHeader();
+          } }
+      ]);
+    }
+    function actBudget() {
+      showModal('Orçamento', 'Distribua orçamento adicional (10%) para qual área?', [
+        { label: 'Saúde', action: () => {
+            G.popularity += 2;
+            addFeed('Você destinou recursos extras para a saúde.');
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Educação', action: () => {
+            G.popularity += 2;
+            addFeed('Você destinou recursos extras para educação.');
+            closeModal();
+            updateHeader();
+          } },
+        { label: 'Infraestrutura', action: () => {
+            G.popularity += 1;
+            addFeed('Você investiu em infraestrutura.');
+            closeModal();
+            updateHeader();
+          } }
+      ]);
+    }
+    // Common campaign action
+    function actCampaign() {
+      showModal('Campanha', 'Deseja iniciar sua campanha para o próximo cargo?', [
+        { label: 'Sim', action: () => {
+            if (G.popularity >= 60) {
+              addFeed('Sua campanha foi bem-sucedida! Você foi eleito para o próximo cargo.');
+              G.officeIndex = Math.min(G.officeIndex + 1, offices.length - 1);
+              G.popularity = 50;
+              closeModal();
+              beginMandate();
+            } else {
+              addFeed('Sua popularidade está baixa. A campanha falhou.');
+              G.popularity = Math.max(0, G.popularity - 10);
+              closeModal();
+              updateHeader();
+            }
+          } },
+        { label: 'Não', action: closeModal }
+      ]);
+    }
+    // Modal helper
+    function showModal(title, text, buttons) {
+      modalTitle.textContent = title;
+      modalText.textContent = text;
+      modalButtons.innerHTML = '';
+      buttons.forEach(btn => {
+        const b = document.createElement('button');
+        b.className = 'button';
+        b.textContent = btn.label;
+        b.addEventListener('click', btn.action);
+        modalButtons.appendChild(b);
+      });
+      modalOverlay.style.display = 'flex';
+    }
+    function closeModal() {
+      modalOverlay.style.display = 'none';
+    }
+    // Generate random bill name
+    function randomBill() {
+      const topics = ['transporte público','saneamento','cultura','tributos','energia limpa','segurança nas escolas'];
+      const adjectives = ['Melhoria','Reforma','Programa','Ajuste','Incentivo'];
+      const t = topics[Math.floor(Math.random() * topics.length)];
+      const a = adjectives[Math.floor(Math.random() * adjectives.length)];
+      return `${a} de ${t}`;
+    }
+  </script>
+</body>
+</html>
